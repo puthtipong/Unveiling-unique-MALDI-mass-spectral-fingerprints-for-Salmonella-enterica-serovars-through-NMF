@@ -1,0 +1,195 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*.
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+Directory <- "/Users/puthtipong/Documents/R working directory/SalmonellaSpectra"
+```
+
+```{r}
+spectra <- import(file.path(Directory),type="csv",verbose=FALSE)
+```
+
+```{r}
+table(sapply(spectra, length))
+any(sapply(spectra, isEmpty))
+all(sapply(spectra, isRegular))
+```
+
+```{r}
+tail(spectra)
+```
+
+```{r}
+metaData(spectra[[1]])$species
+```
+
+```{r}
+spectra <- trim(spectra)
+```
+
+```{r}
+idx <- sample(length(spectra), size=2)
+plot(spectra[[idx[1]]])
+```
+
+```{r}
+plot(spectra[[idx[2]]])
+```
+
+```{r}
+spectra <- transformIntensity(spectra, method="sqrt")
+```
+
+```{r}
+plot(spectra[[1]], type="b",
+     xlim=c(4560, 4580), ylim=c(48, 65))
+abline(h=55, col=4, lty=2)
+```
+
+```{r}
+spectra <- smoothIntensity(spectra, method="SavitzkyGolay",
+                           halfWindowSize=16)
+```
+
+```{r}
+## define iteration steps: 25, 50, ..., 100
+iterations <- seq(from=25, to=100, by=25) ## define different colors for each step 
+col <- rainbow(length(iterations))
+plot(spectra[[1]], xlim=c(2000, 12000))
+## draw different baseline estimates
+for (i in seq(along=iterations)) {
+baseline <- estimateBaseline(spectra[[1]], method="SNIP",
+                               iterations=iterations[i])
+  lines(baseline, col=col[i], lwd=2)
+}
+legend("topright", legend=iterations, col=col, lwd=1)
+```
+
+```{r}
+spectra <- removeBaseline(spectra, method="SNIP",
+                          iterations=25)
+plot(spectra[[1]])
+```
+
+```{r}
+spectra <- calibrateIntensity(spectra, method="TIC")
+```
+
+```{r}
+spectra <- alignSpectra(spectra)
+```
+
+```{r}
+## define snrs steps: 1, 1.5, ... 2.5
+snrs <- seq(from=1, to=5, by=0.5)
+## define different colors for each step 
+col <- rainbow(length(snrs))
+## estimate noise
+noise <- estimateNoise(spectra[[1]],
+                       method="SuperSmoother")
+plot(spectra[[1]],
+     xlim=c(6000, 16000), ylim=c(0, 0.0016))
+for (i in seq(along=snrs)) { lines(noise[, "mass"],
+        noise[, "intensity"]*snrs[i],
+        col=col[i], lwd=2)
+}
+legend("topright", legend=snrs, col=col, lwd=1)
+```
+
+```{r}
+peaks <- detectPeaks(spectra, SNR=4.5, halfWindowSize=16)
+```
+
+```{r}
+plot(spectra[[1]], xlim=c(2000, 20000), ylim=c(0, 0.0016))
+points(peaks[[1]], col="red", pch=4)
+```
+
+```{r}
+peaks <- binPeaks(peaks)
+```
+
+```{r}
+for(x in 1:40){
+    metaData(spectra[[x]]) <- list(name="Agona")
+}
+for(x in 41:80){
+    metaData(spectra[[x]]) <- list(name="Albany")
+}
+for(x in 81:120){
+    metaData(spectra[[x]]) <- list(name="Altona")
+}
+for(x in 121:160){
+    metaData(spectra[[x]]) <- list(name="Enteritidis")
+}
+for(x in 161:200){
+    metaData(spectra[[x]]) <- list(name="Typhimurium")
+}
+```
+
+```{r}
+featureMatrix <- intensityMatrix(peaks, spectra)
+serovar <- sapply(spectra, function(x)metaData(x)$name)
+```
+
+```{r}
+rownames(featureMatrix) <- paste(serovar,sep=".")
+```
+
+```{r}
+featureMatrix
+```
+
+```{r}
+serovar <- factor(serovar)
+```
+
+```{r}
+library("pvclust")
+pv <- pvclust(t(featureMatrix),
+              method.hclust="ward.D2",
+              method.dist="euclidean")
+```
+
+```{r}
+
+plot(pv, print.num=FALSE)
+```
+
+```{r}
+ddar <- sda.ranking(Xtrain=featureMatrix, L=serovar,
+                    fdr=FALSE, diagonal=TRUE)
+```
+
+```{python}
+
+```
+
+```{r}
+plot(ddar)
+```
+
+```{r}
+ldar <- sda.ranking(Xtrain=featureMatrix, L=serovar,
+                    fdr=FALSE, diagonal=FALSE)
+```
+
+```{r}
+plot(ldar)
+```
